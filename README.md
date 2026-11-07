@@ -16,3 +16,5 @@ mvn javafx:run
 ```
 
 The JavaFX application needs a graphical desktop session to run.
+
+Use **W**, **A**, **S**, and **D** to move the triangle up, left, down, and right.
