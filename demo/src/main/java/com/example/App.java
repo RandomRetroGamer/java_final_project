@@ -1,38 +1,54 @@
 package com.example;
 
+import javafx.animation.AnimationTimer;
 import javafx.application.Application;
-import javafx.fxml.FXMLLoader;
-import javafx.scene.Parent;
 import javafx.scene.Scene;
+import javafx.scene.canvas.Canvas;
+import javafx.scene.canvas.GraphicsContext;
+import javafx.scene.layout.StackPane;
+import javafx.scene.paint.Color;
 import javafx.stage.Stage;
 
-import java.io.IOException;
-
 /**
- * JavaFX App
+ * JavaFX for final project java.
  */
+
 public class App extends Application {
 
     private static Scene scene;
-
+    window win = new window();
+    
     @Override
-    public void start(Stage stage) throws IOException {
-        scene = new Scene(loadFXML("primary"), 640, 480);
+    public void start(Stage stage) {
+        
+        Canvas canvas = new Canvas(win.window_width, win.window_height);
+        GraphicsContext gc = canvas.getGraphicsContext2D();
+
+        
+        StackPane root = new StackPane(canvas);
+        scene = new Scene(root, win.window_width, win.window_height);
+
         stage.setScene(scene);
+        stage.setResizable(false); 
         stage.show();
+
+
+        new AnimationTimer() {
+            @Override
+            public void handle(long now) {
+                render(gc);
+            }
+        }.start();
     }
 
-    static void setRoot(String fxml) throws IOException {
-        scene.setRoot(loadFXML(fxml));
-    }
-
-    private static Parent loadFXML(String fxml) throws IOException {
-        FXMLLoader fxmlLoader = new FXMLLoader(App.class.getResource(fxml + ".fxml"));
-        return fxmlLoader.load();
+    private void render(GraphicsContext gc) {
+        gc.setFill(Color.BLACK);
+        gc.fillRect(0, 0, win.window_width, win.window_height);
+        
+        
     }
 
     public static void main(String[] args) {
-        launch();
+        launch(args);
     }
-
 }
