@@ -13,6 +13,10 @@ import javafx.scene.canvas.GraphicsContext;
 import javafx.scene.input.KeyCode;
 import javafx.scene.layout.Pane;
 import javafx.scene.paint.Color;
+import javafx.scene.text.Font;
+import javafx.scene.text.FontPosture;
+import javafx.scene.text.FontWeight;
+import javafx.scene.text.Text;
 import javafx.stage.Stage;
 
 public class App extends Application {
@@ -21,41 +25,50 @@ public class App extends Application {
     private final Set<KeyCode> activeKeys = new HashSet<>();
 
     @Override
-    public void start(Stage stage) {
-        Canvas canvas = new Canvas(win.window_width, win.window_height);
-        GraphicsContext gc = canvas.getGraphicsContext2D();
+public void start(Stage stage) {
+    Canvas canvas = new Canvas(win.window_width, win.window_height);
+    GraphicsContext gc = canvas.getGraphicsContext2D();
 
-        Triangle triangle = new Triangle(
-                (win.window_width - 100) / 4.0,
-                (win.window_height - 100) / 4.0,
-                Color.BLUE);
+    Triangle triangle = new Triangle(
+            (win.window_width - 100) / 4.0,
+            (win.window_height - 100) / 4.0,
+            Color.BLUE);
 
-        Pane root = new Pane(canvas, triangle);
-        root.setPrefSize(win.window_width, win.window_height);
-        root.setFocusTraversable(true);
-        Scene scene = new Scene(root, win.window_width, win.window_height);
+    Text text = new Text(20, 40, String.format("Speed: %.2f", triangle.getSpeed()));
+    text.setFont(Font.font("Arial", FontWeight.BOLD, FontPosture.REGULAR, 24));
+    text.setFill(Color.WHITE);
+    text.setStroke(Color.LIGHTGRAY);
+    text.setStrokeWidth(0.5);
 
+    // 2. Add canvas, triangle, and text to the same root Pane
+    Pane root = new Pane(canvas, triangle, text);
+    root.setPrefSize(win.window_width, win.window_height);
+    root.setFocusTraversable(true);
+    Scene scene = new Scene(root, win.window_width, win.window_height);
 
-        scene.setOnKeyPressed(event -> activeKeys.add(event.getCode()));
-        scene.setOnKeyReleased(event -> activeKeys.remove(event.getCode()));
+    scene.setOnKeyPressed(event -> activeKeys.add(event.getCode()));
+    scene.setOnKeyReleased(event -> activeKeys.remove(event.getCode()));
 
-        stage.setScene(scene);
-        stage.setResizable(false);
-        stage.show();
-        root.requestFocus();
+    stage.setScene(scene);
+    stage.setResizable(false);
+    stage.show();
+    root.requestFocus();
 
-   
-        new AnimationTimer() {
-            @Override
-            public void handle(long now) {
-                updatePlayer(triangle);
-                render(gc);
-            }
-        }.start();
-    }
+    new AnimationTimer() {
+        @Override
+        public void handle(long now) {
+            updatePlayer(triangle);
+            render(gc);
+
+            text.setText(String.format("Speed: %.2f", triangle.getSpeed()));
+        }
+    }.start();
+}
 
       private void updatePlayer(Triangle triangle) {
+
         if (activeKeys.contains(KeyCode.W)) triangle.moveUp();
+
         if (activeKeys.contains(KeyCode.S)) triangle.moveDown();
         if (activeKeys.contains(KeyCode.A)) triangle.moveLeft();
         if (activeKeys.contains(KeyCode.D)) triangle.moveRight();

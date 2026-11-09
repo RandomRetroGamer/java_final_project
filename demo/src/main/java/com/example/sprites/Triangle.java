@@ -48,6 +48,11 @@ public class Triangle extends Polygon {
         vx += acceleration;
     }
 
+    public void moveUpLeft(){
+        targetAngle = 135.0;
+        vy -= acceleration;
+    }
+
     public void updateMovement() {
 
         double currentSpeed = Math.hypot(vx, vy);
@@ -66,7 +71,14 @@ public class Triangle extends Polygon {
 
         if (Math.abs(vx) < 0.01) vx = 0;
         if (Math.abs(vy) < 0.01) vy = 0;
+
     }
+
+    public double getSpeed() {
+        return Math.hypot(vx, vy);
+    }
+
+
 
     public void updateRotation() {
         double current = getRotate();
