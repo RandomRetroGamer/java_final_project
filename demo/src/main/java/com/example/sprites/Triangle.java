@@ -1,16 +1,30 @@
 package com.example.sprites;
-
+/*
+ * this is the player class that will be used in app.java
+ * we have somethings to go over, the triangle class is connected to the
+ * spec class which has the default speed and acceleration of the triangle,
+ * my plan is to make this a wave / rouge lite game where the players has to 
+ * upgrade to keep up with the difficulty of the game.
+ */
 import javafx.scene.paint.Color;
 import javafx.scene.shape.Polygon;
 
 public class Triangle extends Polygon {
     private double vx = 0.0;
     private double vy = 0.0;
+    
+    private double worldX = 0.0;
+    private double worldY = 0.0;
 
-    private double acceleration = 0.12;
+  
     private double friction = 0.98;
-    private double maxSpeed = 5.0;
     private double targetAngle = 0.0;
+    
+    specs s = new specs();
+    upgrades u = new upgrades();
+    private double acceleration = s.user_accerlation * u.default_speed_multiplier;
+    private double maxSpeed = s.user_speed;
+
 
     public Triangle() {
         this.getPoints().addAll(
@@ -23,6 +37,8 @@ public class Triangle extends Polygon {
 
     public Triangle(double x, double y, Color color) {
         this();
+        worldX = x;
+        worldY = y;
         this.setTranslateX(x);
         this.setTranslateY(y);
         this.setFill(color);
@@ -62,8 +78,10 @@ public class Triangle extends Polygon {
         }
 
 
-        setTranslateX(getTranslateX() + vx);
-        setTranslateY(getTranslateY() + vy);
+        worldX += vx;
+        worldY += vy;
+        setTranslateX(worldX);
+        setTranslateY(worldY);
 
 
         vx *= friction;
@@ -78,7 +96,13 @@ public class Triangle extends Polygon {
         return Math.hypot(vx, vy);
     }
 
+    public double getWorldX() {
+        return worldX;
+    }
 
+    public double getWorldY() {
+        return worldY;
+    }
 
     public void updateRotation() {
         double current = getRotate();
