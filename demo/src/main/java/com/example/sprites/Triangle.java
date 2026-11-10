@@ -104,6 +104,9 @@ public class Triangle extends Polygon {
         return worldY;
     }
 
+    public double getVx() { return vx; }
+    public double getVy() { return vy; }
+
     public void updateRotation() {
         double current = getRotate();
         double diff = ((targetAngle - current + 540) % 360) - 180;
