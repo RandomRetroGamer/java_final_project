@@ -12,19 +12,21 @@ import javafx.scene.shape.Polygon;
 public class Triangle extends Polygon {
     private double vx = 0.0;
     private double vy = 0.0;
-    
+
     private double worldX = 0.0;
     private double worldY = 0.0;
 
-  
     private double friction = 0.98;
     private double targetAngle = 0.0;
-    
+
+    // direction keys held this frame (-1, 0, or 1 on each axis after combining)
+    private int inputX = 0;
+    private int inputY = 0;
+
     specs s = new specs();
     upgrades u = new upgrades();
     private double acceleration = s.user_accerlation * u.default_speed_multiplier;
     private double maxSpeed = s.user_speed;
-
 
     public Triangle() {
         this.getPoints().addAll(
@@ -45,28 +47,23 @@ public class Triangle extends Polygon {
     }
 
     public void moveDown() {
-        targetAngle = 0.0;
+        inputY += 1;
         vy += acceleration;
     }
 
     public void moveLeft() {
-        targetAngle = 90.0;
+        inputX -= 1;
         vx -= acceleration;
     }
 
     public void moveUp() {
-        targetAngle = 180.0;
+        inputY -= 1;
         vy -= acceleration;
     }
 
     public void moveRight() {
-        targetAngle = -90.0;
+        inputX += 1;
         vx += acceleration;
-    }
-
-    public void moveUpLeft(){
-        targetAngle = 135.0;
-        vy -= acceleration;
     }
 
     public void updateMovement() {
@@ -77,23 +74,28 @@ public class Triangle extends Polygon {
             vy = (vy / currentSpeed) * maxSpeed;
         }
 
-
         worldX += vx;
         worldY += vy;
         setTranslateX(worldX);
         setTranslateY(worldY);
-
 
         vx *= friction;
         vy *= friction;
 
         if (Math.abs(vx) < 0.01) vx = 0;
         if (Math.abs(vy) < 0.01) vy = 0;
-
     }
 
     public double getSpeed() {
         return Math.hypot(vx, vy);
+    }
+
+    public double getVx() {
+        return vx;
+    }
+
+    public double getVy() {
+        return vy;
     }
 
     public double getWorldX() {
@@ -104,10 +106,17 @@ public class Triangle extends Polygon {
         return worldY;
     }
 
-    public double getVx() { return vx; }
-    public double getVy() { return vy; }
-
     public void updateRotation() {
+        // Build the target angle from the combined input direction.
+        // Tip points down at 0 degrees: down=0, left=90, up=180, right=-90,
+        // so diagonals like up-left come out as 135 automatically.
+        // If no keys are held (or opposing keys cancel), keep the last angle.
+        if (inputX != 0 || inputY != 0) {
+            targetAngle = Math.toDegrees(Math.atan2(-inputX, inputY));
+        }
+        inputX = 0;
+        inputY = 0;
+
         double current = getRotate();
         double diff = ((targetAngle - current + 540) % 360) - 180;
 

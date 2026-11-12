@@ -1,8 +1,8 @@
 package com.example.sprites;
 
 class specs {
-    double user_speed  = 5.0;
-    double user_accerlation = 0.12;
+    double user_speed  = 8.0;
+    double user_accerlation = .5;
 }
 
 

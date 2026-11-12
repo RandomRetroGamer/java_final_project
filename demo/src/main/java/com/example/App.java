@@ -6,6 +6,7 @@ import java.util.List;
 import java.util.Random;
 import java.util.Set;
 
+import com.example.sprites.Circle;
 import com.example.sprites.Triangle;
 
 import javafx.animation.AnimationTimer;
@@ -16,7 +17,6 @@ import javafx.scene.canvas.GraphicsContext;
 import javafx.scene.input.KeyCode;
 import javafx.scene.layout.Pane;
 import javafx.scene.paint.Color;
-import javafx.scene.shape.Circle;
 import javafx.scene.text.Font;
 import javafx.scene.text.FontPosture;
 import javafx.scene.text.FontWeight;
@@ -24,11 +24,11 @@ import javafx.scene.text.Text;
 import javafx.stage.Stage;
 
 public class App extends Application {
-    private final List<Circle> mobs = new ArrayList<>();
-    
+
     window win = new window();
     private final Set<KeyCode> activeKeys = new HashSet<>();
     private final Star[] stars = createStars();
+    private final List<Circle> mobs = new ArrayList<>();
     private static final double STAR_PARALLAX = 0.35;
 
     @Override
@@ -46,7 +46,7 @@ public class App extends Application {
 
         text.setFill(Color.WHITE);
         text.setStroke(Color.LIGHTGRAY);
-        
+
         text.setStrokeWidth(0.5);
 
         Pane root = new Pane(canvas, triangle, text);
@@ -60,14 +60,25 @@ public class App extends Application {
 
         stage.setScene(scene);
         stage.setResizable(false);
-        
+
         stage.show();
         root.requestFocus();
+
+        // spawn a few circle mobs around the player
+        Random spawnRng = new Random();
+        for (int i = 0; i < 3; i++) {
+            double angle = spawnRng.nextDouble() * Math.PI * 2;
+            double d = 500 + spawnRng.nextDouble() * 300;
+            mobs.add(new Circle(
+                    triangle.getWorldX() + 25 + Math.cos(angle) * d,
+                    triangle.getWorldY() + 25 + Math.sin(angle) * d));
+        }
 
         new AnimationTimer() {
             @Override
             public void handle(long now) {
                 updatePlayer(triangle);
+                updateMobs(triangle);
                 render(gc, triangle, now);
                 text.setText(String.format("Speed: %.2f", triangle.getSpeed()));
             }
@@ -85,6 +96,20 @@ public class App extends Application {
 
         triangle.setTranslateX(win.window_width / 2.0 - 25.0);
         triangle.setTranslateY(win.window_height / 2.0 - 25.0);
+    }
+
+    private void updateMobs(Triangle triangle) {
+        double px = triangle.getWorldX() + 25.0;
+        double py = triangle.getWorldY() + 25.0;
+
+        for (Circle mob : mobs) {
+            mob.update(px, py, triangle.getVx(), triangle.getVy(), mobs);
+            int hits = mob.checkBulletHits(px, py, 20);
+            if (hits > 0) {
+                System.out.println("Player hit! x" + hits); // hook up player health here
+            }
+        }
+        mobs.removeIf(Circle::isDead);
     }
 
     private void render(GraphicsContext gc, Triangle triangle, long now) {
@@ -105,6 +130,10 @@ public class App extends Application {
 
             gc.setFill(Color.rgb(brightness, brightness, Math.min(255, brightness + 35)));
             gc.fillOval(x, y, star.radius * 2.0, star.radius * 2.0);
+        }
+
+        for (Circle mob : mobs) {
+            mob.draw(gc, cameraX, cameraY);
         }
     }
 
