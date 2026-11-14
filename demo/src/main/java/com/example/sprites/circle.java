@@ -31,7 +31,7 @@ public class Circle {
     private int strafeDir = 1;
     private int strafeTimer = 0;
     private int fireTimer;
-    private int health = 3;
+    private int health = 1;
 
     private final Random rng = new Random();
     private final List<Bullet> bullets = new ArrayList<>();
@@ -181,7 +181,7 @@ public class Circle {
 
 
 
-    public void draw(GraphicsContext gc, double cameraX, double cameraY) {
+    public void draw(GraphicsContext gc, double cameraX, double cameraY, boolean targeted) {
         double sx = x - cameraX;
         double sy = y - cameraY;
 
@@ -199,6 +199,16 @@ public class Circle {
         gc.setStroke(Color.DARKRED);
         gc.setLineWidth(2);
         gc.strokeOval(sx - radius, sy - radius, radius * 2, radius * 2);
+
+        if (targeted) {
+            gc.setStroke(Color.LIME);
+            gc.setLineWidth(3);
+            gc.strokeOval(sx - radius - 8, sy - radius - 8, (radius + 8) * 2, (radius + 8) * 2);
+            gc.strokeLine(sx - 26, sy, sx - 20, sy);
+            gc.strokeLine(sx + 20, sy, sx + 26, sy);
+            gc.strokeLine(sx, sy - 26, sx, sy - 20);
+            gc.strokeLine(sx, sy + 20, sx, sy + 26);
+        }
     }
 
 
@@ -210,7 +220,7 @@ public class Circle {
 
 
     private static final class Bullet {
-        static final double SPEED = 6.0;
+        static final double SPEED = 8.0;
         static final double RADIUS = 4.0;
 
         double x, y, vx, vy;
