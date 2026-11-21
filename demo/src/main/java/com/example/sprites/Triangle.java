@@ -3,20 +3,25 @@ package com.example.sprites;
  * this is the player class that will be used in app.java
  * we have somethings to go over, the triangle class is connected to the
  * spec class which has the default speed and acceleration of the triangle,
- * my plan is to make this a wave / rouge lite game where the players has to 
- * upgrade to keep up with the difficulty of the game.
+ *
+ * Units: vx, vy, and getSpeed() are in pixels per second.
+ * updateMovement(dt) and updateRotation(dt) must be called once per frame,
+ * after the movement keys are read, and before the next frame.
  */
 import javafx.scene.paint.Color;
 import javafx.scene.shape.Polygon;
 
 public class Triangle extends Polygon {
+
+    private static final double FPS = 60.0;
+
     private double vx = 0.0;
     private double vy = 0.0;
 
     private double worldX = 0.0;
     private double worldY = 0.0;
 
-    private double friction = 0.98;
+    private final double friction = 0.98;     // retained per 1/60 s
     private double targetAngle = 0.0;
 
     // direction keys held this frame (-1, 0, or 1 on each axis after combining)
@@ -25,8 +30,10 @@ public class Triangle extends Polygon {
 
     specs s = new specs();
     upgrades u = new upgrades();
-    private double acceleration = s.user_accerlation * u.default_speed_multiplier;
-    private double maxSpeed = s.user_speed;
+
+    // px/s^2 and px/s
+    private final double acceleration = s.user_accerlation * u.default_speed_multiplier * FPS * FPS;
+    private final double maxSpeed = s.user_speed * FPS;
 
     public Triangle() {
         this.getPoints().addAll(
@@ -46,27 +53,16 @@ public class Triangle extends Polygon {
         this.setFill(color);
     }
 
-    public void moveDown() {
-        inputY += 1;
-        vy += acceleration;
-    }
+    // The move methods only record which keys are held. The actual
+    // acceleration is applied in updateMovement(dt).
+    public void moveDown()  { inputY += 1; }
+    public void moveLeft()  { inputX -= 1; }
+    public void moveUp()    { inputY -= 1; }
+    public void moveRight() { inputX += 1; }
 
-    public void moveLeft() {
-        inputX -= 1;
-        vx -= acceleration;
-    }
-
-    public void moveUp() {
-        inputY -= 1;
-        vy -= acceleration;
-    }
-
-    public void moveRight() {
-        inputX += 1;
-        vx += acceleration;
-    }
-
-    public void updateMovement() {
+    public void updateMovement(double dt) {
+        vx += inputX * acceleration * dt;
+        vy += inputY * acceleration * dt;
 
         double currentSpeed = Math.hypot(vx, vy);
         if (currentSpeed > maxSpeed) {
@@ -74,16 +70,18 @@ public class Triangle extends Polygon {
             vy = (vy / currentSpeed) * maxSpeed;
         }
 
-        worldX += vx;
-        worldY += vy;
+        worldX += vx * dt;
+        worldY += vy * dt;
         setTranslateX(worldX);
         setTranslateY(worldY);
 
-        vx *= friction;
-        vy *= friction;
+        double damping = Math.pow(friction, dt * FPS);
+        vx *= damping;
+        vy *= damping;
 
-        if (Math.abs(vx) < 0.01) vx = 0;
-        if (Math.abs(vy) < 0.01) vy = 0;
+        // threshold in px/s (was 0.01 px per frame)
+        if (Math.abs(vx) < 0.6) vx = 0;
+        if (Math.abs(vy) < 0.6) vy = 0;
     }
 
     public double getSpeed() {
@@ -106,7 +104,9 @@ public class Triangle extends Polygon {
         return worldY;
     }
 
-    public void updateRotation() {
+    // Must run after updateMovement(dt) in the same frame, because it consumes
+    // the input flags that the move methods set.
+    public void updateRotation(double dt) {
         // Build the target angle from the combined input direction.
         // Tip points down at 0 degrees: down=0, left=90, up=180, right=-90,
         // so diagonals like up-left come out as 135 automatically.
@@ -123,7 +123,9 @@ public class Triangle extends Polygon {
         if (Math.abs(diff) < 1.0) {
             setRotate(targetAngle);
         } else {
-            setRotate(current + diff * 0.25);
+            // was a fixed 25% step per frame
+            double t = 1 - Math.pow(0.75, dt * FPS);
+            setRotate(current + diff * t);
         }
     }
 }

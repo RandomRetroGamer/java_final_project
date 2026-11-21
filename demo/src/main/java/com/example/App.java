@@ -35,7 +35,7 @@ public class App extends Application {
     private final List<PlayerBullet> playerBullets = new ArrayList<>();
     private Circle target;
     private boolean shootRequested;
-    private int playerFireCooldown;
+    private double playerFireCooldown;
     private double zoom = 1.0;
     private static final double MIN_ZOOM = 0.5;
     private static final double MAX_ZOOM = 2.5;
@@ -44,10 +44,13 @@ public class App extends Application {
     private static final int INITIAL_CIRCLE_COUNT = 10;
     private static final int PLAYER_MAX_HEALTH = 100;
     private static final int CIRCLE_DAMAGE = 5;
-    private static final int PLAYER_DAMAGE_COOLDOWN = 45;
+    private static final double PLAYER_DAMAGE_COOLDOWN = 0.75;
+		private static final double FIRE_COOLDOWN = 0.2;        
     private int playerHealth = PLAYER_MAX_HEALTH;
-    private int playerDamageCooldown;
+    private double playerDamageCooldown;
     private boolean gameOver;
+		private long lastFrameNanos = -1;
+		private static final double MAX_DT = 0.05; 
 
     @Override
     public void start(Stage stage) {
@@ -100,13 +103,17 @@ public class App extends Application {
         new AnimationTimer() {
             @Override
             public void handle(long now) {
+							  double dt = lastFrameNanos < 0 ? 0 : Math.min((now - lastFrameNanos) / 1_000_000_000.0, MAX_DT);
+								lastFrameNanos = now;
+
                 if (!gameOver) {
-                    updatePlayer(triangle);
-                    updateMobs(triangle);
-                    ensureTarget(triangle);
-                    firePlayerBullet(triangle);
-                    updatePlayerBullets();
+ 										updatePlayer(triangle, dt);
+										updateMobs(triangle, dt);
+										ensureTarget(triangle);
+										firePlayerBullet(triangle, dt);
+										updatePlayerBullets(dt);
                 }
+
                 render(gc, triangle, now);
                 if (gameOver) {
                     text.setText("Ship destroyed - press R to restart");
@@ -145,38 +152,43 @@ public class App extends Application {
         target = findNearestTarget(triangle);
     }
 
-    private void updatePlayer(Triangle triangle) {
-        if (activeKeys.contains(KeyCode.W)) triangle.moveUp();
-        if (activeKeys.contains(KeyCode.S)) triangle.moveDown();
-        if (activeKeys.contains(KeyCode.A)) triangle.moveLeft();
-        if (activeKeys.contains(KeyCode.D)) triangle.moveRight();
+		private void updatePlayer(Triangle triangle, double dt) {
+				if (activeKeys.contains(KeyCode.W)) triangle.moveUp();
+				if (activeKeys.contains(KeyCode.S)) triangle.moveDown();
+				if (activeKeys.contains(KeyCode.A)) triangle.moveLeft();
+				if (activeKeys.contains(KeyCode.D)) triangle.moveRight();
 
-        triangle.updateMovement();
-        triangle.updateRotation();
+				triangle.updateMovement(dt);
+				triangle.updateRotation(dt);
 
-        triangle.setTranslateX(win.window_width / 2.0 - 25.0);
-        triangle.setTranslateY(win.window_height / 2.0 - 25.0);
-        triangle.setScaleX(zoom);
-        triangle.setScaleY(zoom);
-        triangle.setOpacity(playerDamageCooldown > 0 && playerDamageCooldown % 8 < 4 ? 0.4 : 1.0);
-    }
+				triangle.setTranslateX(win.window_width / 2.0 - 25.0);
+				triangle.setTranslateY(win.window_height / 2.0 - 25.0);
+				triangle.setScaleX(zoom);
+				triangle.setScaleY(zoom);
 
-    private void updateMobs(Triangle triangle) {
-        if (playerDamageCooldown > 0) playerDamageCooldown--;
-        double px = triangle.getWorldX() + 25.0;
-        double py = triangle.getWorldY() + 25.0;
+				// blink period of 8 frames at 60 fps, now in seconds
+				boolean blinkOff = playerDamageCooldown > 0 && ((int) (playerDamageCooldown * 60) % 8) < 4;
+				triangle.setOpacity(blinkOff ? 0.4 : 1.0);
+		}
 
-        for (Circle mob : mobs) {
-            mob.update(px, py, triangle.getVx(), triangle.getVy(), mobs);
-            int hits = mob.checkBulletHits(px, py, 20);
-            if (hits > 0 && playerDamageCooldown == 0) {
-                playerHealth = Math.max(0, playerHealth - CIRCLE_DAMAGE);
-                playerDamageCooldown = PLAYER_DAMAGE_COOLDOWN;
-                gameOver = playerHealth == 0;
-            }
-        }
-        mobs.removeIf(Circle::isDead);
-    }
+		private void updateMobs(Triangle triangle, double dt) {
+				if (playerDamageCooldown > 0) {
+						playerDamageCooldown = Math.max(0, playerDamageCooldown - dt);
+				}
+				double px = triangle.getWorldX() + 25.0;
+				double py = triangle.getWorldY() + 25.0;
+
+				for (Circle mob : mobs) {
+						mob.update(px, py, triangle.getVx(), triangle.getVy(), dt, mobs);
+						int hits = mob.checkBulletHits(px, py, 20);
+						if (hits > 0 && playerDamageCooldown == 0) {
+								playerHealth = Math.max(0, playerHealth - CIRCLE_DAMAGE);
+								playerDamageCooldown = PLAYER_DAMAGE_COOLDOWN;
+								gameOver = playerHealth == 0;
+						}
+				}
+				mobs.removeIf(Circle::isDead);
+		}
 
     private void cycleTarget(Triangle triangle, int direction) {
         if (mobs.isEmpty()) {
@@ -216,55 +228,55 @@ public class App extends Application {
         return nearest;
     }
 
-    private void firePlayerBullet(Triangle triangle) {
-        if (gameOver) return;
-        if (playerFireCooldown > 0) playerFireCooldown--;
-        if (!shootRequested && (!activeKeys.contains(KeyCode.SPACE) || playerFireCooldown > 0)) return;
-        shootRequested = false;
-        if (target == null || target.isDead()) return;
+    private void firePlayerBullet(Triangle triangle, double dt) {
+			if (gameOver) return;
+			if (playerFireCooldown > 0) playerFireCooldown = Math.max(0, playerFireCooldown - dt);
+			if (!shootRequested && (!activeKeys.contains(KeyCode.SPACE) || playerFireCooldown > 0)) return;
+			shootRequested = false;
+			if (target == null || target.isDead()) return;
 
-        double startX = triangle.getWorldX() + 25.0;
-        double startY = triangle.getWorldY() + 25.0;
-        double dx = target.getX() - startX;
-        double dy = target.getY() - startY;
-        double distance = Math.hypot(dx, dy);
-        if (distance == 0) return;
+				double startX = triangle.getWorldX() + 25.0;
+				double startY = triangle.getWorldY() + 25.0;
+				double dx = target.getX() - startX;
+				double dy = target.getY() - startY;
+				double distance = Math.hypot(dx, dy);
+				if (distance == 0) return;
 
-        double speed = PlayerBullet.SPEED;
-        playerBullets.add(new PlayerBullet(startX, startY, target,
-                dx / distance * speed, dy / distance * speed));
-        playerFireCooldown = 12;
-    }
+				double speed = PlayerBullet.SPEED;
+				playerBullets.add(new PlayerBullet(startX, startY, target,
+								dx / distance * speed, dy / distance * speed));
+				playerFireCooldown = FIRE_COOLDOWN;
+		}
 
-    private void updatePlayerBullets() {
-        Iterator<PlayerBullet> bullets = playerBullets.iterator();
-        while (bullets.hasNext()) {
-            PlayerBullet bullet = bullets.next();
-            if (bullet.target.isDead() || !mobs.contains(bullet.target)) {
-                bullets.remove();
-                continue;
-            }
+    private void updatePlayerBullets(double dt) {
+				Iterator<PlayerBullet> bullets = playerBullets.iterator();
+				while (bullets.hasNext()) {
+						PlayerBullet bullet = bullets.next();
+						if (bullet.target.isDead() || !mobs.contains(bullet.target)) {
+								bullets.remove();
+								continue;
+						}
 
-            double dx = bullet.target.getX() - bullet.x;
-            double dy = bullet.target.getY() - bullet.y;
-            double distance = Math.hypot(dx, dy);
-            if (distance > 0) {
-                bullet.vx = dx / distance * PlayerBullet.SPEED;
-                bullet.vy = dy / distance * PlayerBullet.SPEED;
-            }
-            bullet.x += bullet.vx;
-            bullet.y += bullet.vy;
-            bullet.life--;
+						double dx = bullet.target.getX() - bullet.x;
+						double dy = bullet.target.getY() - bullet.y;
+						double distance = Math.hypot(dx, dy);
+						if (distance > 0) {
+								bullet.vx = dx / distance * PlayerBullet.SPEED;
+								bullet.vy = dy / distance * PlayerBullet.SPEED;
+						}
+						bullet.x += bullet.vx * dt;
+						bullet.y += bullet.vy * dt;
+						bullet.life -= dt;
 
-            if (Math.hypot(bullet.x - bullet.target.getX(), bullet.y - bullet.target.getY())
-                    <= bullet.target.getRadius() + PlayerBullet.RADIUS) {
-                bullet.target.damage(1);
-                bullets.remove();
-            } else if (bullet.life <= 0) {
-                bullets.remove();
-            }
-        }
-    }
+						if (Math.hypot(bullet.x - bullet.target.getX(), bullet.y - bullet.target.getY())
+										<= bullet.target.getRadius() + PlayerBullet.RADIUS) {
+								bullet.target.damage(1);
+								bullets.remove();
+						} else if (bullet.life <= 0) {
+								bullets.remove();
+						}
+				}
+		}
 
     private void render(GraphicsContext gc, Triangle triangle, long now) {
         gc.setFill(Color.rgb(3, 5, 20));
@@ -415,7 +427,7 @@ public class App extends Application {
     }
 
     private static final class PlayerBullet {
-        private static final double SPEED = 12.0;
+				private static final double SPEED = 720.0;   
         private static final double RADIUS = 6.0;
 
         private double x;
@@ -423,7 +435,7 @@ public class App extends Application {
         private double vx;
         private double vy;
         private final Circle target;
-        private int life = 180;
+        private double life = 3.0f;
 
         private PlayerBullet(double x, double y, Circle target, double vx, double vy) {
             this.x = x;
