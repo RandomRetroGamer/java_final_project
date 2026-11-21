@@ -12,25 +12,26 @@ public class Circle {
 
     private enum State { WANDER, CHASE, STRAFE, RETREAT }
 
+    private static final double FPS = 60.0;
 
     private static final double DETECT_RANGE = 700;
     private static final double SHOOT_RANGE = 550;
     private static final double PREFERRED_DIST = 320;
     private static final double TOO_CLOSE = 200;
-    private static final int FIRE_COOLDOWN = 220;    
-    private static final double AIM_SPREAD = 0.06;   
+    private static final double FIRE_COOLDOWN = 220 / FPS;   // seconds
+    private static final double AIM_SPREAD = 0.06;           // radians
 
     private double x, y, vx, vy;
     private final double radius = 18;
-    private final double accel = 0.12;
-    private final double maxSpeed = 2.2;
-    private final double friction = 0.96;
+    private final double accel = 0.12 * FPS * FPS;   // px/s^2
+    private final double maxSpeed = 2.2 * FPS;       // px/s
+    private final double friction = 0.96;            // retained per 1/60 s
 
     private State state = State.WANDER;
     private double wanderX, wanderY;
     private int strafeDir = 1;
-    private int strafeTimer = 0;
-    private int fireTimer;
+    private double strafeTimer = 0;   // seconds
+    private double fireTimer;         // seconds
     private int health = 1;
 
     private final Random rng = new Random();
@@ -39,12 +40,11 @@ public class Circle {
     public Circle(double x, double y) {
         this.x = x;
         this.y = y;
-        this.fireTimer = 30 + rng.nextInt(FIRE_COOLDOWN);
+        this.fireTimer = 0.5 + rng.nextDouble() * FIRE_COOLDOWN;
         pickWanderTarget();
     }
 
-  
-    public void update(double px, double py, double pvx, double pvy, List<Circle> others) {
+    public void update(double px, double py, double pvx, double pvy, double dt, List<Circle> others) {
         double dx = px - x, dy = py - y;
         double dist = Math.hypot(dx, dy);
 
@@ -64,17 +64,17 @@ public class Circle {
             case CHASE -> { dirX = nx; dirY = ny; }
             case RETREAT -> { dirX = -nx; dirY = -ny; }
             case STRAFE -> {
-                if (--strafeTimer <= 0) {
-                    strafeTimer = 90 + rng.nextInt(120);
+                strafeTimer -= dt;
+                if (strafeTimer <= 0) {
+                    strafeTimer = 1.5 + rng.nextDouble() * 2.0;
                     if (rng.nextDouble() < 0.5) strafeDir = -strafeDir;
                 }
-  
+
                 double radial = (dist - PREFERRED_DIST) / PREFERRED_DIST;
                 dirX = -ny * strafeDir + nx * radial;
                 dirY =  nx * strafeDir + ny * radial;
             }
         }
-
 
         for (Circle o : others) {
             if (o == this) continue;
@@ -88,8 +88,8 @@ public class Circle {
 
         double len = Math.hypot(dirX, dirY);
         if (len > 0) {
-            vx += (dirX / len) * accel;
-            vy += (dirY / len) * accel;
+            vx += (dirX / len) * accel * dt;
+            vy += (dirY / len) * accel * dt;
         }
 
         double speed = Math.hypot(vx, vy);
@@ -97,19 +97,21 @@ public class Circle {
             vx = vx / speed * maxSpeed;
             vy = vy / speed * maxSpeed;
         }
-        x += vx;
-        y += vy;
-        vx *= friction;
-        vy *= friction;
+        x += vx * dt;
+        y += vy * dt;
+
+        double damping = Math.pow(friction, dt * FPS);
+        vx *= damping;
+        vy *= damping;
 
         // shooting
-        if (fireTimer > 0) fireTimer--;
+        if (fireTimer > 0) fireTimer -= dt;
         if (state != State.WANDER && dist < SHOOT_RANGE && fireTimer <= 0) {
             shoot(px, py, pvx, pvy);
-            fireTimer = FIRE_COOLDOWN + rng.nextInt(20);
+            fireTimer = FIRE_COOLDOWN + rng.nextDouble() * (20 / FPS);
         }
 
-        updateBullets();
+        updateBullets(dt);
     }
 
     private void chooseState(double dist) {
@@ -126,11 +128,11 @@ public class Circle {
         wanderY = y + Math.sin(angle) * d;
     }
 
-
     private void shoot(double px, double py, double pvx, double pvy) {
-        double bulletSpeed = Bullet.SPEED;
+        double bulletSpeed = Bullet.SPEED;   // px/s
         double dx = px - x, dy = py - y;
 
+        // pvx/pvy are px/s, so t below is in seconds
         double a = pvx * pvx + pvy * pvy - bulletSpeed * bulletSpeed;
         double b = 2 * (dx * pvx + dy * pvy);
         double c = dx * dx + dy * dy;
@@ -156,15 +158,14 @@ public class Circle {
         bullets.add(new Bullet(x, y, Math.cos(angle) * bulletSpeed, Math.sin(angle) * bulletSpeed));
     }
 
-    private void updateBullets() {
+    private void updateBullets(double dt) {
         Iterator<Bullet> it = bullets.iterator();
         while (it.hasNext()) {
             Bullet b = it.next();
-            b.update();
+            b.update(dt);
             if (b.life <= 0) it.remove();
         }
     }
-
 
     public int checkBulletHits(double px, double py, double playerRadius) {
         int hits = 0;
@@ -179,12 +180,9 @@ public class Circle {
         return hits;
     }
 
-
-
     public void draw(GraphicsContext gc, double cameraX, double cameraY, boolean targeted) {
         double sx = x - cameraX;
         double sy = y - cameraY;
-
 
         gc.setFill(Color.ORANGERED);
         for (Bullet b : bullets) {
@@ -192,8 +190,7 @@ public class Circle {
                     Bullet.RADIUS * 2, Bullet.RADIUS * 2);
         }
 
-  
-        boolean charging = fireTimer < 10 && state != State.WANDER;
+        boolean charging = fireTimer < 10 / FPS && state != State.WANDER;
         gc.setFill(charging ? Color.WHITE : Color.CRIMSON);
         gc.fillOval(sx - radius, sy - radius, radius * 2, radius * 2);
         gc.setStroke(Color.DARKRED);
@@ -211,29 +208,27 @@ public class Circle {
         }
     }
 
-
     public double getX() { return x; }
     public double getY() { return y; }
     public double getRadius() { return radius; }
     public boolean isDead() { return health <= 0; }
     public void damage(int amount) { health -= amount; }
 
-
     private static final class Bullet {
-        static final double SPEED = 8.0;
+        static final double SPEED = 8.0 * FPS;   // px/s
         static final double RADIUS = 4.0;
 
         double x, y, vx, vy;
-        int life = 280;  
+        double life = 280 / FPS;                 // seconds
 
         Bullet(double x, double y, double vx, double vy) {
             this.x = x; this.y = y; this.vx = vx; this.vy = vy;
         }
 
-        void update() {
-            x += vx;
-            y += vy;
-            life--;
+        void update(double dt) {
+            x += vx * dt;
+            y += vy * dt;
+            life -= dt;
         }
     }
 }
